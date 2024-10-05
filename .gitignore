@@ -1,8 +1,13 @@
+app_database.json
+latest_price_db.json
+
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-app_database.json
 
 # C extensions
 *.so

@@ -38,9 +38,7 @@ class LatestPriceDataManager:
 
     def get_value(self, key: str) -> float:
         value = self.data.get(key)
-        if value is not None:
-            Logger.debug(f"Retrieved price {value} for key {key}")
-        else:
+        if value is None:
             Logger.warn(f"No price found for key {key}")
         return value
 
@@ -52,7 +50,6 @@ class LatestPriceDataManager:
                 float_value = float(value)  # Validate float
                 self.data[key] = float_value
                 updated_count += 1
-                Logger.debug(f"Set price {float_value} for key {key}")
             except ValueError:
                 Logger.error(f"Invalid price value: Key {key}, Price {value}")
 

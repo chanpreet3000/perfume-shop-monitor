@@ -1,13 +1,16 @@
+import asyncio
 import os
 import discord
 from discord import app_commands
 from ApplicationDataManager import ApplicationDataManager
+from LatestPriceDataManager import LatestPriceDataManager
 from Logger import Logger
 from dotenv import load_dotenv
 
-load_dotenv()
+from scraper import scrape_products, ScrapedProduct
+from utils import get_current_time, sleep_randomly
 
-WATCH_PRODUCT_CRON_DELAY_SECONDS = int(os.getenv('WATCH_PRODUCT_CRON_DELAY_SECONDS', 60 * 60))
+load_dotenv()
 
 
 class ProductScraperBot(discord.Client):
@@ -17,6 +20,7 @@ class ProductScraperBot(discord.Client):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.data_manager = ApplicationDataManager()
+        self.price_manager = LatestPriceDataManager()
 
     async def setup_hook(self):
         await self.tree.sync()
@@ -224,6 +228,113 @@ async def get_channels(interaction: discord.Interaction):
 @client.event
 async def on_ready():
     Logger.info(f'Bot is now online and ready to use: {client.user}')
+    await run_scraper_cycle()
+
+
+def create_embed(product: ScrapedProduct, previous_price: float | None, embed_color: int):
+    if previous_price is None:
+        discount_from_previous_scan = product.price
+    else:
+        discount_from_previous_scan = ((previous_price - product.price) / previous_price) * 100
+
+    embed = discord.Embed(
+        title=product.name,
+        url=product.url,
+        color=embed_color
+    )
+    # embed.set_thumbnail(url=product.image)
+    embed.add_field(name="Current Price", value=product.formatted_price, inline=True)
+    embed.add_field(name="Previous Scan Price", value=previous_price, inline=True)
+    embed.add_field(name="SKU", value=product.default_sku, inline=True)
+    embed.add_field(name="Discount From Previous Scan", value=f"{discount_from_previous_scan:.2f}% Off!", inline=True)
+    embed.add_field(name="Brand", value=product.brand, inline=True)
+
+    promotions = {promo["reward"]["rewardType"] for promo in product.promotions}
+    if product.promotions:
+        embed.add_field(name="Promotions", value="\n".join(f"• {promo}" for promo in promotions), inline=False)
+
+    embed.set_footer(text=f"🕒 Time: {get_current_time()} (UK)")
+    return embed
+
+
+async def send_products_info_to_discord(products: list[ScrapedProduct], embed_color: int, content: str):
+    Logger.info(f'Sending {len(products)} products to Discord')
+
+    chunk_size = 10
+    channels = client.data_manager.get_all_notification_channels()
+
+    for i in range(0, len(products), chunk_size):
+        chunk = products[i:i + chunk_size]
+
+        embeds = [create_embed(product, client.price_manager.get_value(product.code), embed_color) for product in chunk]
+
+        for channel_id in channels:
+            channel = client.get_channel(int(channel_id))
+            if channel:
+                try:
+                    await channel.send(content=content if i == 0 else '', embeds=embeds)
+                    Logger.info(
+                        f"Message sent successfully to channel {channel_id} (Products {i + 1} to {i + len(chunk)})")
+                except Exception as error:
+                    Logger.error(
+                        f"Error sending message to channel {channel_id} (Products {i + 1} to {i + len(chunk)})", error)
+            else:
+                Logger.warn(f"Channel {channel_id} not found")
+
+        await sleep_randomly(5, 0, 'Sleeping after sending products to Discord')
+
+
+async def run_scraper_cycle():
+    while True:
+        try:
+            Logger.info("Starting scraper cycle")
+
+            links_to_scrape = client.data_manager.get_all_links_to_scrape()
+
+            if not links_to_scrape:
+                Logger.warn("No links to scrape. Skipping this cycle.")
+            else:
+                products = scrape_products(links_to_scrape)
+
+                banned_brands = client.data_manager.get_all_banned_brands()
+                filtered_products = [
+                    product for product in products
+                    if product.brand.lower() not in (brand.lower() for brand in banned_brands) and product.is_in_stock
+                ]
+
+                Logger.info(f"Scraped {len(products)} products, {len(filtered_products)} after filtering banned brands")
+
+                new_products = []
+                price_drops = []
+
+                for product in filtered_products:
+                    latest_price = client.price_manager.get_value(product.code)
+                    if latest_price is None:
+                        new_products.append(product)
+                    elif product.price < latest_price:
+                        price_drops.append(product)
+
+                Logger.info(f"Found {len(new_products)} new products and {len(price_drops)} price drops")
+
+                if new_products:
+                    content = f"🎉 @here Exciting news! New products have just arrived. Be the first to check them out!"
+                    await send_products_info_to_discord(new_products, 0x00FF00, content)
+
+                if price_drops:
+                    content = f"💰 @here Alert! Price drops detected. Don't miss out on these amazing deals!"
+                    await send_products_info_to_discord(price_drops, 0xffff00, content)
+
+                client.price_manager.set_multiple_values(
+                    [(product.code, product.price) for product in filtered_products])
+
+            cycle_interval = client.data_manager.get_cycle_interval()
+            Logger.info(f"Scraper cycle completed. Sleeping for {cycle_interval} seconds.")
+
+            await asyncio.sleep(cycle_interval)
+
+        except Exception as e:
+            Logger.error("Error in scraper cycle", e)
+            await asyncio.sleep(10 * 60)
 
 
 def run_bot():

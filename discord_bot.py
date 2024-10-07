@@ -142,6 +142,7 @@ class ProductScraperBot(discord.Client):
         embed.add_field(name="Discount From Previous Scan", value=f"{discount_from_previous_scan:.2f}% Off!",
                         inline=True)
         embed.add_field(name="Brand", value=product.brand, inline=True)
+        embed.add_field(name="Stock Level", value=product.stock_level, inline=True)
 
         promotions = {promo["reward"]["rewardType"] for promo in product.promotions}
         if product.promotions:

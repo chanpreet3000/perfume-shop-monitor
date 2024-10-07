@@ -56,9 +56,8 @@ class ProductScraperBot(discord.Client):
                     Logger.info(
                         f"Scraped {len(products)} products, {len(filtered_products)} after filtering banned brands")
 
-                    # Get all variants information
-
-                    filtered_products = fetch_products_parallel(filtered_products)
+                    filtered_products = await self.loop.run_in_executor(None, fetch_products_parallel,
+                                                                        filtered_products)
 
                     new_products = []
                     price_drops = []

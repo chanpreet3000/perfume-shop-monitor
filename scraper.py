@@ -48,7 +48,7 @@ def update_product_info(product, json_ld_data: Dict, html: str):
     return product
 
 
-def fetch_product_html(product: ScrapedProduct) -> ScrapedProduct:
+def fetch_product_html(product: ScrapedProduct) -> ScrapedProduct | None:
     try:
         headers = getHeader()
         response = requests.get(product.url, headers=headers)
@@ -60,7 +60,7 @@ def fetch_product_html(product: ScrapedProduct) -> ScrapedProduct:
         return updated_product
     except Exception as e:
         Logger.error(f"Error fetching {product.url}: {str(e)}")
-        return product
+        return None
 
 
 def fetch_products_parallel(products: List[ScrapedProduct], threads: int = 10) -> List[ScrapedProduct]:
@@ -75,7 +75,8 @@ def fetch_products_parallel(products: List[ScrapedProduct], threads: int = 10) -
             product = future_to_product[future]
             try:
                 result = future.result()
-                results.append(result)
+                if result is not None:
+                    results.append(result)
                 completed_count += 1
                 if completed_count % 10 == 0 or completed_count == len(products):
                     Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")

@@ -1,135 +1,89 @@
 import requests
+import json
+import re
 import time
+from bs4 import BeautifulSoup
+from typing import List, Dict, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import Logger
 from Logger import Logger
+from ScrapedProduct import ScrapedProduct
+from utils import getHeader
 
 
-class ScrapedProduct:
-    def __init__(self, average_rating: int, code: str, image: str, brand: str, name: str,
-                 price: float, formatted_price: str, promotions, is_in_stock: bool,
-                 default_sku: str, url: str):
-        self.average_rating = average_rating
-        self.code = code
-        self.image = image
-        self.brand = brand
-        self.name = name
-        self.price = price
-        self.formatted_price = formatted_price
-        self.promotions = promotions
-        self.is_in_stock = is_in_stock
-        self.default_sku = default_sku
-        self.url = url
-
-    def __repr__(self):
-        return (f"ScrapedProduct({self.code}, {self.name}, {self.price}, "
-                f"{self.formatted_price}, {self.is_in_stock}, {self.url}, {self.brand}, "
-                f"{self.image}, {self.average_rating}, {self.promotions}, {self.default_sku})")
+def parse_json_ld(html: str) -> Dict:
+    soup = BeautifulSoup(html, 'html.parser')
+    json_ld_script = soup.find('script', {'id': 'json-ld', 'type': 'application/ld+json'})
+    if json_ld_script:
+        json_ld_data = json.loads(json_ld_script.string)
+        for item in json_ld_data:
+            if item.get('@type') == 'Product':
+                return item
+    return {}
 
 
-headers = {
-    'accept': 'application/json, text/plain, */*',
-    'accept-language': 'en-US,en;q=0.9',
-    'occ-personalization-id': 'cf7088c4-b393-41b1-94d4-0ad108d5fb72',
-    'occ-personalization-time': '1728113833620',
-    'origin': 'https://www.theperfumeshop.com',
-    'priority': 'u=1, i',
-    'referer': 'https://www.theperfumeshop.com/',
-    'sec-ch-ua': '"Brave";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-site',
-    'sec-gpc': '1',
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-    'x-anonymous-consents': '%5B%5D',
-}
+def extract_volume_and_price(html: str) -> Tuple[Optional[str], Optional[float]]:
+    volume_match = re.search(r'<span class="product-add-to-cart(?:__)?price-size-depiction">\s*(\d+ML)\s*</span>', html)
+    volume = volume_match.group(1) if volume_match else None
 
-base_url = 'https://api.theperfumeshop.com/api/v2/tpsgb/search'
+    price_match = re.search(r'<span class="price(?:__)?current">\s*£([\d.]+)', html)
+    price = float(price_match.group(1)) if price_match else None
+
+    return volume, price
 
 
-def fetch_products(category_code, page):
-    params = {
-        'fields': 'FULL',
-        'searchType': 'PRODUCT',
-        'categoryCode': category_code,
-        'currentPage': page,
-        'lang': 'en_GB',
-        'curr': 'GBP',
-        'pageSize': 200
-    }
+def update_product_info(product, json_ld_data: Dict, html: str):
+    if 'offers' in json_ld_data:
+        product.is_in_stock = json_ld_data['offers'].get('availability') != 'OutOfStock'
 
-    response = requests.get(base_url, params=params, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        Logger.warn(f"Error fetching page {page} for category {category_code}: {response.status_code}")
-        return None
+    if 'name' in json_ld_data and 'description' in json_ld_data:
+        description = json_ld_data['description']
+        if isinstance(description, list) and len(description) > 0:
+            product.name = f"{json_ld_data['name']} - {description[0]}"
+
+    volume, price = extract_volume_and_price(html)
+    product.variant_info = volume
+    if price is not None:
+        product.price = price
+    return product
 
 
-def process_category(category_code):
-    all_products = []
-    page = 0
-    total_pages = 1
-
-    while page < total_pages:
-        data = fetch_products(category_code, page)
-        if data and 'products' in data:
-            all_products.extend(data['products'])
-            total_pages = data['pagination']['totalPages']
-            page += 1
-            Logger.info(f'Fetched page {page}/{total_pages} for category {category_code}')
-        else:
-            break
-        time.sleep(1)
-
-    return all_products
+def fetch_product_html(product: ScrapedProduct) -> ScrapedProduct:
+    try:
+        headers = getHeader()
+        response = requests.get(product.url, headers=headers)
+        response.raise_for_status()
+        html = response.text
+        json_ld_data = parse_json_ld(html)
+        updated_product = update_product_info(product, json_ld_data, html)
+        Logger.info(f"Successfully scraped product: {product.url}")
+        return updated_product
+    except Exception as e:
+        Logger.error(f"Error fetching {product.url}: {str(e)}")
+        return product
 
 
-def scrape_products(links: set[str]) -> list[ScrapedProduct]:
-    categories = [link.split('/')[-1] for link in links]
-    all_products = []
+def fetch_products_parallel(products: List[ScrapedProduct], threads: int = 10) -> List[ScrapedProduct]:
+    Logger.info(f"Starting to fetch {len(products)} products with {threads} threads")
+    start_time = time.time()
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_category = {executor.submit(process_category, category): category for category in categories}
-        for future in as_completed(future_to_category):
-            category = future_to_category[future]
+    results = []
+    completed_count = 0
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        future_to_product = {executor.submit(fetch_product_html, product): product for product in products}
+        for future in as_completed(future_to_product):
+            product = future_to_product[future]
             try:
-                products = future.result()
-                all_products.extend(products)
-                Logger.info(f"Completed fetching all products for category {category}")
+                result = future.result()
+                results.append(result)
+                completed_count += 1
+                if completed_count % 10 == 0 or completed_count == len(products):
+                    Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")
             except Exception as exc:
-                Logger.error(f"Category {category} generated an exception", exc)
+                Logger.error(f"{product.url} generated an exception: {exc}")
 
-    Logger.info(f'Total products fetched: {len(all_products)}')
+    end_time = time.time()
+    total_time = end_time - start_time
+    Logger.info(f"Completed fetching {len(products)} products in {total_time:.2f} seconds")
 
-    return transform_scraped_products(all_products)
-
-
-def transform_scraped_products(products: list[dict]) -> list[ScrapedProduct]:
-    Logger.info("Started Transforming scraped products")
-    scraped_products = []
-    for product in products:
-        average_rating = product.get('averageRating', 0)
-        code = product.get('code', 'N/A')
-        image = f"https://media.theperfumeshop.com/medias{product.get('images')[0]['url']}"
-        brand = product.get('masterBrand', {}).get('name', '')
-        name = product.get('name', 'N/A')
-        promotions = product.get('promotions', [])
-        is_in_stock = product.get('stock', {}).get('stockLevelStatus', 'N/A') != 'outOfStock'
-        default_sku = product.get('defaultSku', 'N/A')
-        url = f"https://www.theperfumeshop.com{product.get('url', '')}"
-        price_data = product.get('price', {})
-        price = price_data.get('value', -1)
-        formatted_price = price_data.get('formattedValue', 'N/A')
-
-        scraped_product = ScrapedProduct(
-            average_rating, code, image, brand, name,
-            price, formatted_price, promotions, is_in_stock,
-            default_sku, url
-        )
-        scraped_products.append(scraped_product)
-    Logger.info("Finished Transforming scraped products")
-    return scraped_products
+    return results

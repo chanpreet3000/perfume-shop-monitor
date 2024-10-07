@@ -7,7 +7,8 @@ from LatestPriceDataManager import LatestPriceDataManager
 from Logger import Logger
 from dotenv import load_dotenv
 
-from scraper import scrape_products, ScrapedProduct
+from fetcher import scrape_products, ScrapedProduct
+from scraper import fetch_products_parallel
 from utils import get_current_time, sleep_randomly
 
 load_dotenv()
@@ -55,28 +56,34 @@ class ProductScraperBot(discord.Client):
                     Logger.info(
                         f"Scraped {len(products)} products, {len(filtered_products)} after filtering banned brands")
 
+                    # Get all variants information
+
+                    filtered_products = fetch_products_parallel(filtered_products)
+
                     new_products = []
                     price_drops = []
 
+                    # Check for new products and price drops
                     for product in filtered_products:
-                        latest_price = self.price_manager.get_value(product.code)
+                        latest_price = self.price_manager.get_value(product.uid)
                         if latest_price is None:
                             new_products.append(product)
                         elif product.price < latest_price:
                             price_drops.append(product)
 
+                    # Update latest prices
+                    self.price_manager.set_multiple_values(
+                        [(product.uid, product.price) for product in filtered_products])
+
                     Logger.info(f"Found {len(new_products)} new products and {len(price_drops)} price drops")
 
                     if new_products:
-                        content = f"🎉 @here Exciting news! New products have just arrived. Be the first to check them out!"
+                        content = f"🎉 @here Exciting news! {len(new_products)} New products have just arrived. Be the first to check them out!"
                         await self.send_products_info_to_discord(new_products, 0x00FF00, content)
 
                     if price_drops:
-                        content = f"💰 @here Alert! Price drops detected. Don't miss out on these amazing deals!"
+                        content = f"💰 @here Alert! {len(price_drops)} Price drops detected. Don't miss out on these amazing deals!"
                         await self.send_products_info_to_discord(price_drops, 0xffff00, content)
-
-                    self.price_manager.set_multiple_values(
-                        [(product.code, product.price) for product in filtered_products])
 
                 cycle_interval = self.data_manager.get_cycle_interval()
                 Logger.info(f"Scraper cycle completed. Sleeping for {cycle_interval} seconds.")
@@ -99,7 +106,7 @@ class ProductScraperBot(discord.Client):
         for i in range(0, len(products), chunk_size):
             chunk = products[i:i + chunk_size]
 
-            embeds = [self.create_embed(product, self.price_manager.get_value(product.code), embed_color) for product in
+            embeds = [self.create_embed(product, embed_color) for product in
                       chunk]
 
             for channel_id in channels:
@@ -118,19 +125,19 @@ class ProductScraperBot(discord.Client):
 
             await sleep_randomly(5, 0, 'Sleeping after sending products to Discord')
 
-    def create_embed(self, product: ScrapedProduct, previous_price: float | None, embed_color: int):
+    def create_embed(self, product: ScrapedProduct, embed_color: int):
+        previous_price = product.latest_price if product.latest_price is not None else product.price
         if previous_price is None:
-            discount_from_previous_scan = product.price
+            discount_from_previous_scan = 100
         else:
             discount_from_previous_scan = ((previous_price - product.price) / previous_price) * 100
 
         embed = discord.Embed(
-            title=product.name,
+            title=f"{product.name} - {product.variant_info}",
             url=product.url,
             color=embed_color
         )
-        # embed.set_thumbnail(url=product.image)
-        embed.add_field(name="Current Price", value=product.formatted_price, inline=True)
+        embed.add_field(name="Current Price", value=product.price, inline=True)
         embed.add_field(name="Previous Scan Price", value=previous_price, inline=True)
         embed.add_field(name="SKU", value=product.default_sku, inline=True)
         embed.add_field(name="Discount From Previous Scan", value=f"{discount_from_previous_scan:.2f}% Off!",

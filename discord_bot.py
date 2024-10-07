@@ -118,7 +118,7 @@ class ProductScraperBot(discord.Client):
 
             await sleep_randomly(5, 0, 'Sleeping after sending products to Discord')
 
-    def create_embed(product: ScrapedProduct, previous_price: float | None, embed_color: int):
+    def create_embed(self, product: ScrapedProduct, previous_price: float | None, embed_color: int):
         if previous_price is None:
             discount_from_previous_scan = product.price
         else:

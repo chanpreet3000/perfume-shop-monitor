@@ -93,8 +93,8 @@ def transform_scraped_products(products: list[dict]) -> list[ScrapedProduct]:
 
             scraped_product = ScrapedProduct(
                 id, average_rating, product_code, brand, name,
-                0, formatted_price, promotions, is_in_stock,
-                default_sku, url, latest_price, variant, "N/A")
+                -1, formatted_price, promotions, is_in_stock,
+                default_sku, url, latest_price, variant, "N/A", -1)
             scraped_products.append(scraped_product)
     Logger.info("Finished Transforming scraped products")
     return scraped_products

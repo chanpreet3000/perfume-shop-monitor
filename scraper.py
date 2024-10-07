@@ -3,9 +3,9 @@ import json
 import re
 import time
 from bs4 import BeautifulSoup
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from html import unescape
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
 from utils import getHeader
@@ -22,14 +22,28 @@ def parse_json_ld(html: str) -> Dict:
     return {}
 
 
-def extract_volume_and_price(html: str) -> Tuple[Optional[str], Optional[float]]:
-    volume_match = re.search(r'<span class="product-add-to-cart(?:__)?price-size-depiction">\s*(\d+ML)\s*</span>', html)
-    volume = volume_match.group(1) if volume_match else None
+def extract_volume_and_price(html: str, product: ScrapedProduct) -> Tuple[float, str, str, str]:
+    script_content = re.search(r'<script id="spartacus-app-state" type="application/json">(.*?)</script>', html,
+                               re.DOTALL)
+    try:
+        json_string = script_content.group(1)
+        json_string = unescape(json_string.replace('&q;', '"'))
 
-    price_match = re.search(r'<span class="price(?:__)?current">\s*£([\d.]+)', html)
-    price = float(price_match.group(1)) if price_match else None
-
-    return volume, price
+        data = json.loads(json_string)
+        price = data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value']['price'][
+            'value']
+        formatted_price = \
+            data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value']['price'][
+                'formattedValue']
+        volume = data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value'][
+            'variantValueCategories'][0]['name']
+        stock_level = \
+            data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value']['stock'][
+                'stockLevel']
+        return price, formatted_price, volume, stock_level
+    except Exception as e:
+        Logger.warn(f"Error extracting volume and price: {product.url}", e)
+        raise Exception(f"Error extracting volume and price: {product.url}")
 
 
 def update_product_info(product, json_ld_data: Dict, html: str):
@@ -41,10 +55,11 @@ def update_product_info(product, json_ld_data: Dict, html: str):
         if isinstance(description, list) and len(description) > 0:
             product.name = f"{json_ld_data['name']} - {description[0]}"
 
-    volume, price = extract_volume_and_price(html)
+    price, formatted_price, volume, stock_level = extract_volume_and_price(html, product)
     product.variant_info = volume
-    if price is not None:
-        product.price = price
+    product.price = price
+    product.formatted_price = formatted_price
+    product.stock_level = stock_level
     return product
 
 

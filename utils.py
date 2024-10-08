@@ -2,6 +2,7 @@ import os
 import asyncio
 import inspect
 import random
+import time
 from datetime import datetime
 
 import pytz
@@ -33,12 +34,17 @@ async def sleep_randomly(base_sleep: float, randomness: float = 0, message: str 
     del current_frame, caller_frame
 
 
+COOKIES = {
+    'cookie': 'cookie'
+}
+
+
 def getHeader():
     base_headers = {
         'accept': 'application/json, text/plain, */*',
         'accept-language': 'en-US,en;q=0.9',
         'occ-personalization-id': 'cf7088c4-b393-41b1-94d4-0ad108d5fb72',
-        'occ-personalization-time': '1728113833620',
+        'occ-personalization-time': time.time_ns(),
         'origin': 'https://www.theperfumeshop.com',
         'priority': 'u=1, i',
         'referer': 'https://www.theperfumeshop.com/',

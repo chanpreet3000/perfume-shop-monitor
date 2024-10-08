@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
-from utils import getHeader
+from utils import getHeader, COOKIES
 
 
 def parse_json_ld(html: str) -> Dict:
@@ -66,7 +66,7 @@ def update_product_info(product, json_ld_data: Dict, html: str):
 def fetch_product_html(product: ScrapedProduct) -> ScrapedProduct | None:
     try:
         headers = getHeader()
-        response = requests.get(product.url, headers=headers)
+        response = requests.get(product.url, headers=headers, cookies=COOKIES)
         response.raise_for_status()
         html = response.text
         json_ld_data = parse_json_ld(html)

@@ -44,7 +44,7 @@ def getHeader():
         'accept': 'application/json, text/plain, */*',
         'accept-language': 'en-US,en;q=0.9',
         'occ-personalization-id': 'cf7088c4-b393-41b1-94d4-0ad108d5fb72',
-        'occ-personalization-time': time.time_ns(),
+        'occ-personalization-time': str(time.time_ns()),
         'origin': 'https://www.theperfumeshop.com',
         'priority': 'u=1, i',
         'referer': 'https://www.theperfumeshop.com/',

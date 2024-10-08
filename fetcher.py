@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from LatestPriceDataManager import LatestPriceDataManager
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
-from utils import headers, cookies
+from utils import getHeader, cookies
 
 latest_price_db = LatestPriceDataManager()
 
@@ -24,7 +24,7 @@ def fetch_products(category_code, page):
         'pageSize': 200
     }
 
-    response = requests.get(base_url, params=params, headers=headers, cookies=cookies)
+    response = requests.get(base_url, params=params, headers=getHeader(), cookies=cookies)
     if response.status_code == 200:
         return response.json()
     else:

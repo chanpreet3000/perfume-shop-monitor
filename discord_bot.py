@@ -1,5 +1,8 @@
 import asyncio
 import os
+import sys
+import traceback
+
 import discord
 from discord import app_commands
 from ApplicationDataManager import ApplicationDataManager
@@ -28,6 +31,16 @@ class ProductScraperBot(discord.Client):
         await self.tree.sync()
         Logger.info("Command tree synced")
         self.scraper_task = self.loop.create_task(self.run_scraper_cycle())
+        self.loop.set_exception_handler(self.handle_exception)
+
+    def handle_exception(self, loop, context):
+        # Log unhandled exceptions
+        exception = context.get('exception')
+        if exception:
+            Logger.error(f"Unhandled exception: {exception}")
+            Logger.error(f"Exception traceback: {traceback.format_exc()}")
+        else:
+            Logger.error(f"Unhandled exception in event loop: {context['message']}")
 
     async def close(self):
         if self.scraper_task:
@@ -89,12 +102,25 @@ class ProductScraperBot(discord.Client):
 
                 await asyncio.sleep(cycle_interval)
 
-            except asyncio.CancelledError:
-                Logger.info("Scraper cycle task cancelled")
+            except asyncio.CancelledError as e:
+                Logger.info("Scraper cycle task cancelled", e)
                 break
             except Exception as e:
                 Logger.error("Error in scraper cycle", e)
                 await asyncio.sleep(10 * 60)
+
+    async def on_error(self, event_method, *args, **kwargs):
+        Logger.error(f"Unhandled error in {event_method}: {sys.exc_info()[1]}")
+        Logger.error(f"Error traceback: {traceback.format_exc()}")
+
+    async def on_disconnect(self):
+        Logger.warn("Bot disconnected from Discord")
+
+    async def on_connect(self):
+        Logger.info("Bot reconnected to Discord")
+        if self.scraper_task is None or self.scraper_task.done():
+            Logger.info("Restarting scraper task")
+            self.scraper_task = self.loop.create_task(self.run_scraper_cycle())
 
     async def send_products_info_to_discord(self, products: list[ScrapedProduct], embed_color: int, content: str):
         Logger.info(f'Sending {len(products)} products to Discord')

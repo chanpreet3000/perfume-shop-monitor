@@ -1,19 +1,15 @@
-import requests
 import time
-import Logger
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from LatestPriceDataManager import LatestPriceDataManager
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
-from utils import getHeader, cookies
+from network import fetch_with_proxy, get_proxies_from_webshare
 
 latest_price_db = LatestPriceDataManager()
 
-base_url = 'https://api.theperfumeshop.com/api/v2/tpsgb/search'
 
-
-def fetch_products(category_code, page):
+def fetch_products(proxies, category_code, page):
     params = {
         'fields': 'FULL',
         'searchType': 'PRODUCT',
@@ -24,7 +20,8 @@ def fetch_products(category_code, page):
         'pageSize': 200
     }
 
-    response = requests.get(base_url, params=params, headers=getHeader(), cookies=cookies)
+    response = fetch_with_proxy(proxies, 'https://api.theperfumeshop.com/api/v2/tpsgb/search', method='GET',
+                                params=params)
     if response.status_code == 200:
         return response.json()
     else:
@@ -32,13 +29,13 @@ def fetch_products(category_code, page):
         return None
 
 
-def process_category(category_code):
+def process_category(proxies, category_code):
     all_products = []
     page = 0
     total_pages = 1
 
     while page < total_pages:
-        data = fetch_products(category_code, page)
+        data = fetch_products(proxies, category_code, page)
         if data and 'products' in data:
             all_products.extend(data['products'])
             total_pages = data['pagination']['totalPages']
@@ -55,8 +52,10 @@ def scrape_products(links: set[str]) -> list[ScrapedProduct]:
     categories = [link.split('/')[-1] for link in links]
     all_products = []
 
+    proxies = get_proxies_from_webshare()
+
     with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_category = {executor.submit(process_category, category): category for category in categories}
+        future_to_category = {executor.submit(process_category, proxies, category): category for category in categories}
         for future in as_completed(future_to_category):
             category = future_to_category[future]
             try:

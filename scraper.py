@@ -1,4 +1,3 @@
-import requests
 import json
 import re
 import time
@@ -8,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
-from utils import getHeader, cookies
+from network import fetch_with_proxy, get_proxies_from_webshare
 
 
 def parse_json_ld(html: str) -> Dict:
@@ -63,10 +62,9 @@ def update_product_info(product, json_ld_data: Dict, html: str):
     return product
 
 
-def fetch_product_html(product: ScrapedProduct) -> ScrapedProduct | None:
+def fetch_product_html(proxies: List[Dict[str, str]], product: ScrapedProduct) -> ScrapedProduct | None:
     try:
-        response = requests.get(product.url, headers=getHeader(), cookies=cookies)
-        response.raise_for_status()
+        response = fetch_with_proxy(proxies, product.url, method='GET', timeout=20)
         html = response.text
         json_ld_data = parse_json_ld(html)
         updated_product = update_product_info(product, json_ld_data, html)
@@ -81,21 +79,35 @@ def fetch_products_parallel(products: List[ScrapedProduct], threads: int = 10) -
     Logger.info(f"Starting to fetch {len(products)} products with {threads} threads")
     start_time = time.time()
 
+    proxies = get_proxies_from_webshare()
+
     results = []
     completed_count = 0
-    with ThreadPoolExecutor(max_workers=threads) as executor:
-        future_to_product = {executor.submit(fetch_product_html, product): product for product in products}
-        for future in as_completed(future_to_product):
-            product = future_to_product[future]
-            try:
-                result = future.result()
-                if result is not None:
-                    results.append(result)
-                completed_count += 1
-                if completed_count % 10 == 0 or completed_count == len(products):
-                    Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")
-            except Exception as exc:
-                Logger.error(f"{product.url} generated an exception: {exc}")
+    batch_size = 50
+    delay_seconds = 60
+
+    for i in range(0, len(products), batch_size):
+        batch = products[i:i + batch_size]
+
+        Logger.info(f"Processing batch {i // batch_size + 1} of products")
+
+        with ThreadPoolExecutor(max_workers=threads) as executor:
+            future_to_product = {executor.submit(fetch_product_html, proxies, product): product for product in batch}
+            for future in as_completed(future_to_product):
+                product = future_to_product[future]
+                try:
+                    result = future.result()
+                    if result is not None:
+                        results.append(result)
+                    completed_count += 1
+                    if completed_count % 10 == 0 or completed_count == len(batch):
+                        Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")
+                except Exception as exc:
+                    Logger.error(f"{product.url} generated an exception: {exc}")
+
+        if i + batch_size < len(products):
+            Logger.info(f"Batch complete. Waiting for {delay_seconds} seconds before next batch...")
+            time.sleep(delay_seconds)
 
     end_time = time.time()
     total_time = end_time - start_time

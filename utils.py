@@ -2,7 +2,6 @@ import os
 import asyncio
 import inspect
 import random
-import time
 from datetime import datetime
 
 import pytz
@@ -32,28 +31,3 @@ async def sleep_randomly(base_sleep: float, randomness: float = 0, message: str 
     await asyncio.sleep(delay)
 
     del current_frame, caller_frame
-
-
-cookies = {}
-
-
-def getHeader():
-    current_time_ms = int(time.time() * 1000)
-    return {
-        'accept': 'application/json, text/plain, */*',
-        'accept-language': 'en-US,en;q=0.9',
-        'occ-personalization-id': 'cf7088c4-b393-41b1-94d4-0ad108d5fb72',
-        'occ-personalization-time': str(current_time_ms),
-        'origin': 'https://www.theperfumeshop.com',
-        'priority': 'u=1, i',
-        'referer': 'https://www.theperfumeshop.com/',
-        'sec-ch-ua': '"Brave";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-site',
-        'sec-gpc': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-        'x-anonymous-consents': '%5B%5D',
-    }

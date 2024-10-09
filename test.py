@@ -1,7 +1,9 @@
 import time
 import requests
 
-cookies = {}
+cookies = {
+    'cookie': 'cookie'
+}
 
 def getHeader():
     current_time_ms = int(time.time() * 1000)

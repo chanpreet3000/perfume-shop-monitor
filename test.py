@@ -1,9 +1,7 @@
 import time
-
 import requests
 
 cookies = {}
-
 
 def getHeader():
     current_time_ms = int(time.time() * 1000)
@@ -25,7 +23,6 @@ def getHeader():
         'x-anonymous-consents': '%5B%5D',
     }
 
-
 params = {
     'fields': 'FULL',
     'searchType': 'PRODUCT',
@@ -34,6 +31,14 @@ params = {
     'curr': 'GBP',
 }
 
-response = requests.get('https://api.theperfumeshop.com/api/v2/tpsgb/search', params=params, cookies=cookies,
-                        headers=getHeader())
-print(response.json())
+response = requests.get('https://api.theperfumeshop.com/api/v2/tpsgb/search', params=params, cookies=cookies, headers=getHeader())
+
+print("Status Code:", response.status_code)
+print("Response Headers:", response.headers)
+print("Response Content:", response.text)
+
+try:
+    json_data = response.json()
+    print("JSON Data:", json_data)
+except requests.exceptions.JSONDecodeError as e:
+    print("JSONDecodeError:", str(e))

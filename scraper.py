@@ -71,31 +71,20 @@ def fetch_products_parallel(products: List[ScrapedProduct], threads: int = 10) -
 
     results = []
     completed_count = 0
-    batch_size = 50
-    delay_seconds = 60
 
-    for i in range(0, len(products), batch_size):
-        batch = products[i:i + batch_size]
-
-        Logger.info(f"Processing batch {i // batch_size + 1} of products")
-
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            future_to_product = {executor.submit(fetch_product_html, proxies, product): product for product in batch}
-            for future in as_completed(future_to_product):
-                product = future_to_product[future]
-                try:
-                    result = future.result()
-                    if result is not None:
-                        results.extend(result)
-                    completed_count += 1
-                    if completed_count % 10 == 0 or completed_count == len(batch):
-                        Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")
-                except Exception as exc:
-                    Logger.error(f"{product.url} generated an exception: {exc}")
-
-        if i + batch_size < len(products):
-            Logger.info(f"Batch complete. Waiting for {delay_seconds} seconds before next batch...")
-            time.sleep(delay_seconds)
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        future_to_product = {executor.submit(fetch_product_html, proxies, product): product for product in products}
+        for future in as_completed(future_to_product):
+            product = future_to_product[future]
+            try:
+                result = future.result()
+                if result is not None:
+                    results.extend(result)
+                completed_count += 1
+                if completed_count % 10 == 0 or completed_count == len(products):
+                    Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")
+            except Exception as exc:
+                Logger.error(f"{product.url} generated an exception: {exc}")
 
     end_time = time.time()
     total_time = end_time - start_time

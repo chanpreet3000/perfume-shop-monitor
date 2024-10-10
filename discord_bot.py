@@ -301,8 +301,8 @@ def create_embed(product: ScrapedProduct, embed_color: int):
         url=product.url,
         color=embed_color
     )
-    embed.add_field(name="Current Price", value=f"€{product.price}", inline=True)
-    embed.add_field(name="Previous Scan Price", value=f"€{previous_price}", inline=True)
+    embed.add_field(name="Current Price", value=f"£{product.price}", inline=True)
+    embed.add_field(name="Previous Scan Price", value=f"£{previous_price}", inline=True)
     embed.add_field(name="EAN", value=product.ean, inline=True)
     embed.add_field(name="Discount From Previous Scan", value=f"{discount_from_previous_scan:.2f}% Off!",
                     inline=True)

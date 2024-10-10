@@ -70,15 +70,6 @@ class ApplicationDataManager:
     def get_all_banned_brands(self) -> Set[str]:
         return self.banned_brands
 
-    # Cycle interval methods
-    def update_cycle_interval(self, interval: int):
-        Logger.info(f"Updating cycle interval to {interval} seconds")
-        self.cycle_interval = interval
-        self.save()
-
-    def get_cycle_interval(self) -> int:
-        return self.cycle_interval
-
     # Links to scrape methods
     def add_link_to_scrape(self, link: str):
         Logger.info(f"Adding link to scrape: {link}")

@@ -72,6 +72,8 @@ class ProductScraperBot(discord.Client):
                     filtered_products = await self.loop.run_in_executor(None, fetch_products_parallel,
                                                                         filtered_products)
 
+                    filtered_products = [product for product in filtered_products if product.is_in_stock]
+                    filtered_products.sort(key=lambda product: product.name)
                     new_products = []
                     price_drops = []
 
@@ -162,8 +164,8 @@ class ProductScraperBot(discord.Client):
             url=product.url,
             color=embed_color
         )
-        embed.add_field(name="Current Price", value=product.price, inline=True)
-        embed.add_field(name="Previous Scan Price", value=previous_price, inline=True)
+        embed.add_field(name="Current Price", value=f"€{product.price}", inline=True)
+        embed.add_field(name="Previous Scan Price", value=f"€{previous_price}", inline=True)
         embed.add_field(name="EAN", value=product.ean, inline=True)
         embed.add_field(name="Discount From Previous Scan", value=f"{discount_from_previous_scan:.2f}% Off!",
                         inline=True)

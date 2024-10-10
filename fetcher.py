@@ -35,7 +35,7 @@ def process_category(proxies, category_code):
         data = fetch_products(proxies, category_code, page)
         if data and 'products' in data:
             all_products.extend(data['products'])
-            # total_pages = data['pagination']['totalPages']
+            total_pages = data['pagination']['totalPages']
             page += 1
             Logger.info(f'Fetched page {page}/{total_pages} for category {category_code}')
         else:

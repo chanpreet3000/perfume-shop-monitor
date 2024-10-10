@@ -53,7 +53,7 @@ def get_all_variants(product: ScrapedProduct, html: str) -> List[ScrapedProduct]
 
 def fetch_product_html(proxies: List[Dict[str, str]], product: ScrapedProduct) -> List[ScrapedProduct] | None:
     try:
-        response = fetch_with_proxy(proxies, product.url, method='GET', timeout=20)
+        response = fetch_with_proxy(proxies, product.url, method='GET', timeout=20, max_retries=3)
         html = response.text
         updated_product = get_all_variants(product, html)
         Logger.info(f"Successfully scraped product: {product.url}")

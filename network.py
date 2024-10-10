@@ -92,11 +92,11 @@ def fetch_with_proxy(proxies: List[Dict[str, str]], url: str, method: str = 'GET
     if cookies is None:
         cookies = {}
 
-    proxy = get_random_proxy(proxies)
+    proxy = None
     for attempt in range(max_retries):
         try:
             headers = getHeader()
-
+            proxy = get_random_proxy(proxies)
             Logger.debug(f"Attempt {attempt + 1}/{max_retries} - Using proxy: {proxy['http']}")
 
             response = requests.request(

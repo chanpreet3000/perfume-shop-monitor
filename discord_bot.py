@@ -63,7 +63,7 @@ class ProductScraperBot(discord.Client):
                     filtered_products = [
                         product for product in products
                         if
-                        product.brand.lower() not in (brand.lower() for brand in banned_brands) and product.is_in_stock
+                        product.brand.lower() not in (brand.lower() for brand in banned_brands)
                     ]
 
                     Logger.info(
@@ -77,7 +77,7 @@ class ProductScraperBot(discord.Client):
 
                     # Check for new products and price drops
                     for product in filtered_products:
-                        latest_price = self.price_manager.get_value(product.uid)
+                        latest_price = product.latest_price
                         if latest_price is None:
                             new_products.append(product)
                         elif product.price < latest_price:
@@ -164,7 +164,7 @@ class ProductScraperBot(discord.Client):
         )
         embed.add_field(name="Current Price", value=product.price, inline=True)
         embed.add_field(name="Previous Scan Price", value=previous_price, inline=True)
-        embed.add_field(name="SKU", value=product.default_sku, inline=True)
+        embed.add_field(name="EAN", value=product.ean, inline=True)
         embed.add_field(name="Discount From Previous Scan", value=f"{discount_from_previous_scan:.2f}% Off!",
                         inline=True)
         embed.add_field(name="Brand", value=product.brand, inline=True)

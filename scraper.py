@@ -1,77 +1,65 @@
 import json
 import re
 import time
-from bs4 import BeautifulSoup
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
+
+from LatestPriceDataManager import LatestPriceDataManager
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
 from network import fetch_with_proxy, get_proxies_from_webshare
 
-
-def parse_json_ld(html: str) -> Dict:
-    soup = BeautifulSoup(html, 'html.parser')
-    json_ld_script = soup.find('script', {'id': 'json-ld', 'type': 'application/ld+json'})
-    if json_ld_script:
-        json_ld_data = json.loads(json_ld_script.string)
-        for item in json_ld_data:
-            if item.get('@type') == 'Product':
-                return item
-    return {}
+latest_price_db = LatestPriceDataManager()
 
 
-def extract_volume_and_price(html: str, product: ScrapedProduct) -> Tuple[float, str, str, str]:
-    script_content = re.search(r'<script id="spartacus-app-state" type="application/json">(.*?)</script>', html,
-                               re.DOTALL)
+def get_all_variants(product: ScrapedProduct, html: str) -> List[ScrapedProduct]:
     try:
+        script_content = re.search(r'<script id="spartacus-app-state" type="application/json">(.*?)</script>', html,
+                                   re.DOTALL)
         json_string = script_content.group(1)
         json_string = unescape(json_string.replace('&q;', '"'))
 
         data = json.loads(json_string)
-        price = data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value']['price'][
-            'value']
-        formatted_price = \
-            data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value']['price'][
-                'formattedValue']
-        volume = data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value'][
-            'variantValueCategories'][0]['name']
-        stock_level = \
-            data['cx-state']['product']['details']['entities'][product.variant_code]['variants']['value']['stock'][
-                'stockLevel']
-        return price, formatted_price, volume, stock_level
+        entries = data['cx-state']['product']['details']['entities']
+        product_key = list(entries.keys())[0]
+        variant_matrix = entries[product_key]['variants']['value']['variantMatrix']
+        name = entries[product_key]['details']['value']['name']
+        range_name = entries[product_key]['details']['value']['rangeName']
+        name = f"{name} - {range_name}"
+
+        products = []
+        for variant_m in variant_matrix:
+            variant_option = variant_m['variantOption']
+            variant = variant_option['code']
+            ean = variant_option['ean']
+            uid = f"{product.product_code}-{variant}"
+            price = variant_option['priceData']['value']
+            is_in_stock = variant_option['stock']['stockLevelStatus'] != 'outOfStock'
+            stock_level = variant_option['stock']['stockLevel']
+            url = f"https://www.theperfumeshop.com/{variant_option['url']}"
+            variant_info = variant_m['variantValueCategory']['name']
+            latest_price = latest_price_db.get_value(uid)
+
+            products.append(
+                ScrapedProduct(uid, product.average_rating, product.product_code, product.brand, name, price,
+                               product.promotions,
+                               is_in_stock, product.default_sku, url, latest_price, variant, variant_info, stock_level,
+                               ean))
+        return products
     except Exception as e:
-        Logger.warn(f"Error extracting volume and price: {product.url}", e)
-        raise Exception(f"Error extracting volume and price: {product.url}")
+        raise e
 
 
-def update_product_info(product, json_ld_data: Dict, html: str):
-    if 'offers' in json_ld_data:
-        product.is_in_stock = json_ld_data['offers'].get('availability') != 'OutOfStock'
-
-    if 'name' in json_ld_data and 'description' in json_ld_data:
-        description = json_ld_data['description']
-        if isinstance(description, list) and len(description) > 0:
-            product.name = f"{json_ld_data['name']} - {description[0]}"
-
-    price, formatted_price, volume, stock_level = extract_volume_and_price(html, product)
-    product.variant_info = volume
-    product.price = price
-    product.formatted_price = formatted_price
-    product.stock_level = stock_level
-    return product
-
-
-def fetch_product_html(proxies: List[Dict[str, str]], product: ScrapedProduct) -> ScrapedProduct | None:
+def fetch_product_html(proxies: List[Dict[str, str]], product: ScrapedProduct) -> List[ScrapedProduct] | None:
     try:
         response = fetch_with_proxy(proxies, product.url, method='GET', timeout=20)
         html = response.text
-        json_ld_data = parse_json_ld(html)
-        updated_product = update_product_info(product, json_ld_data, html)
+        updated_product = get_all_variants(product, html)
         Logger.info(f"Successfully scraped product: {product.url}")
         return updated_product
     except Exception as e:
-        Logger.error(f"Error fetching {product.url}: {str(e)}")
+        Logger.error(f"Error fetching {product.url}", e)
         return None
 
 
@@ -98,7 +86,7 @@ def fetch_products_parallel(products: List[ScrapedProduct], threads: int = 10) -
                 try:
                     result = future.result()
                     if result is not None:
-                        results.append(result)
+                        results.extend(result)
                     completed_count += 1
                     if completed_count % 10 == 0 or completed_count == len(batch):
                         Logger.info(f"Progress: {completed_count}/{len(products)} products scraped")

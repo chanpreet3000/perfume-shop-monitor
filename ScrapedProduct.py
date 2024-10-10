@@ -25,3 +25,13 @@ class ScrapedProduct:
                f"is_in_stock={self.is_in_stock}, default_sku={self.default_sku}, url={self.url}, " \
                f"latest_price={self.latest_price}, variant_code={self.variant_code}, variant_info={self.variant_info}, " \
                f"stock_level={self.stock_level}, ean={self.ean})"
+
+    def to_dict(self):
+        return {
+            'uid': self.uid,
+            'name': self.name,
+            'price': self.price,
+            'url': self.url,
+            'latest_price': self.latest_price,
+            'ean': self.ean
+        }

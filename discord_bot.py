@@ -41,7 +41,7 @@ async def add_brand(interaction: discord.Interaction, brand: str):
     Logger.info(f"Received add brand request for: {brand}")
     await interaction.response.defer(thinking=True)
 
-    client.data_manager.add_banned_brand(brand)
+    data_manager.add_banned_brand(brand)
     Logger.info(f"Added brand to banned list: {brand}")
     embed = discord.Embed(
         title="✅ Brand Added",
@@ -56,7 +56,7 @@ async def remove_brand(interaction: discord.Interaction, brand: str):
     Logger.info(f"Received remove brand request for: {brand}")
     await interaction.response.defer(thinking=True)
 
-    client.data_manager.remove_banned_brand(brand)
+    data_manager.remove_banned_brand(brand)
     Logger.info(f"Removed brand from banned list: {brand}")
     embed = discord.Embed(
         title="✅ Brand Removed",
@@ -71,7 +71,7 @@ async def get_brands(interaction: discord.Interaction):
     Logger.info("Fetching all banned brands")
     await interaction.response.defer(thinking=True)
 
-    banned_brands = client.data_manager.get_all_banned_brands()
+    banned_brands = data_manager.get_all_banned_brands()
     Logger.debug(f"Banned brands retrieved: {banned_brands}")
     if banned_brands:
         response = "\n".join([f"{i + 1}. {brand}" for i, brand in enumerate(banned_brands)])
@@ -96,7 +96,7 @@ async def add_link(interaction: discord.Interaction, link: str):
     Logger.info(f"Received add link request for: {link}")
     await interaction.response.defer(thinking=True)
 
-    client.data_manager.add_link_to_scrape(link)
+    data_manager.add_link_to_scrape(link)
     Logger.info(f"Added link to scrape: {link}")
     embed = discord.Embed(
         title="✅ Link Added",
@@ -111,7 +111,7 @@ async def remove_link(interaction: discord.Interaction, link: str):
     Logger.info(f"Received remove link request for: {link}")
     await interaction.response.defer(thinking=True)
 
-    client.data_manager.remove_link_to_scrape(link)
+    data_manager.remove_link_to_scrape(link)
     Logger.info(f"Removed link from scrape list: {link}")
     embed = discord.Embed(
         title="✅ Link Removed",
@@ -126,7 +126,7 @@ async def get_links(interaction: discord.Interaction):
     Logger.info("Fetching all links to scrape")
     await interaction.response.defer(thinking=True)
 
-    links = client.data_manager.get_all_links_to_scrape()
+    links = data_manager.get_all_links_to_scrape()
     Logger.debug(f"Links to scrape retrieved: {links}")
     if links:
         response = "\n".join([f"{i + 1}. {link}" for i, link in enumerate(links)])
@@ -151,7 +151,7 @@ async def add_channel(interaction: discord.Interaction, channel: discord.TextCha
     Logger.info(f"Received add channel request for: {channel.id}")
     await interaction.response.defer(thinking=True)
 
-    client.data_manager.add_notification_channel(str(channel.id))
+    data_manager.add_notification_channel(str(channel.id))
     Logger.info(f"Added notification channel: {channel.id}")
     embed = discord.Embed(
         title="✅ Channel Added",
@@ -166,7 +166,7 @@ async def remove_channel(interaction: discord.Interaction, channel: discord.Text
     Logger.info(f"Received remove channel request for: {channel.id}")
     await interaction.response.defer(thinking=True)
 
-    client.data_manager.remove_notification_channel(str(channel.id))
+    data_manager.remove_notification_channel(str(channel.id))
     Logger.info(f"Removed notification channel: {channel.id}")
     embed = discord.Embed(
         title="✅ Channel Removed",
@@ -181,7 +181,7 @@ async def get_channels(interaction: discord.Interaction):
     Logger.info("Fetching all notification channels")
     await interaction.response.defer(thinking=True)
 
-    channels = client.data_manager.get_all_notification_channels()
+    channels = data_manager.get_all_notification_channels()
     Logger.debug(f"Notification channels retrieved: {channels}")
     if channels:
         response = "\n".join([f"{i + 1}. <#{channel}>" for i, channel in enumerate(channels)])
@@ -238,7 +238,8 @@ async def cron_job():
                     new_products.append(product)
                 elif product.price < latest_price:
                     price_drops.append(product)
-
+            Logger.info(f"Found {len(new_products)} new products", [product.to_dict() for product in new_products])
+            Logger.info(f"Found {len(price_drops)} price drops", [product.to_dict() for product in price_drops])
             # Update latest prices
             price_manager.set_multiple_values(
                 [(product.uid, product.price) for product in filtered_products])

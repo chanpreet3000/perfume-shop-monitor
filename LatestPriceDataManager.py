@@ -1,14 +1,14 @@
 import json
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from Logger import Logger
 
 
 class LatestPriceDataManager:
     def __init__(self):
         self.filename = 'latest_price_db.json'
-        self.data: Dict[str, float] = self.init()
+        self.data: Dict[str, float] = self._init()
 
-    def init(self) -> Dict[str, float]:
+    def _init(self) -> Dict[str, float]:
         Logger.info("Initializing LatestPriceDataManager")
         try:
             with open(self.filename, 'r') as file:
@@ -22,11 +22,14 @@ class LatestPriceDataManager:
         except FileNotFoundError:
             Logger.warn(f"Database file {self.filename} not found. Initializing with empty data.")
             return {}
+        except json.JSONDecodeError as error:
+            Logger.error(f'Error decoding JSON in {self.filename}:', error)
+            raise
         except Exception as error:
-            Logger.error('Error in LatestPriceDataManager:', error)
+            Logger.error('Unexpected error in LatestPriceDataManager:', error)
             raise
 
-    def __save(self) -> None:
+    def _save(self) -> None:
         Logger.info(f"Saving data to {self.filename}")
         try:
             with open(self.filename, 'w') as file:
@@ -36,7 +39,7 @@ class LatestPriceDataManager:
             Logger.error('Error saving data in LatestPriceDataManager:', error)
             raise
 
-    def get_value(self, key: str) -> float:
+    def get_value(self, key: str) -> Optional[float]:
         value = self.data.get(key)
         if value is None:
             Logger.warn(f"No price found for key {key}")
@@ -52,5 +55,5 @@ class LatestPriceDataManager:
                 updated_count += 1
             except ValueError:
                 Logger.error(f"Invalid price value: Key {key}, Price {value}")
-
-        self.__save()
+        Logger.info(f"Successfully set {updated_count} price entries")
+        self._save()

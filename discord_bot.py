@@ -240,19 +240,24 @@ async def cron_job():
 
             Logger.info("Checking for new products and price drops")
             for product in filtered_products:
-                latest_price = product.latest_price
-                if latest_price is None:
+                product.latest_price = price_manager.get_value(product.uid)
+                if product.latest_price is None:
                     new_products.append(product)
-                elif product.price < latest_price:
+                elif product.price < product.latest_price:
                     price_drops.append(product)
 
             Logger.info(f"Found {len(new_products)} new products", [product.to_dict() for product in new_products])
             Logger.info(f"Found {len(price_drops)} price drops", [product.to_dict() for product in price_drops])
 
-            Logger.info("Updating latest prices")
+            Logger.info("Updating latest prices for new products")
             price_manager.set_multiple_values(
-                [(product.uid, product.price) for product in filtered_products])
-            Logger.info("Latest prices updated")
+                [(product.uid, product.price) for product in new_products])
+            Logger.info("Latest prices updated for new products")
+
+            Logger.info("Updating latest prices for price drop products")
+            price_manager.set_multiple_values(
+                [(product.uid, product.price) for product in price_drops])
+            Logger.info("Latest prices updated for price drop products")
 
             if new_products:
                 content = f"🎉 @here Exciting news! {len(new_products)} New products have just arrived. Be the first to check them out!"

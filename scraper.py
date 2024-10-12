@@ -5,12 +5,9 @@ from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html import unescape
 
-from LatestPriceDataManager import LatestPriceDataManager
 from Logger import Logger
 from ScrapedProduct import ScrapedProduct
 from network import fetch_with_proxy, get_proxies_from_webshare
-
-latest_price_db = LatestPriceDataManager()
 
 
 def get_all_variants(product: ScrapedProduct, html: str) -> List[ScrapedProduct]:
@@ -39,12 +36,11 @@ def get_all_variants(product: ScrapedProduct, html: str) -> List[ScrapedProduct]
             stock_level = variant_option['stock']['stockLevel']
             url = f"https://www.theperfumeshop.com/{variant_option['url']}"
             variant_info = variant_m['variantValueCategory']['name']
-            latest_price = latest_price_db.get_value(uid)
 
             products.append(
                 ScrapedProduct(uid, product.average_rating, product.product_code, product.brand, name, price,
                                product.promotions,
-                               is_in_stock, product.default_sku, url, latest_price, variant, variant_info, stock_level,
+                               is_in_stock, product.default_sku, url, -1, variant, variant_info, stock_level,
                                ean))
         return products
     except Exception as e:

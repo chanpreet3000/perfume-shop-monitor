@@ -36,20 +36,35 @@ class ProductScraperBot(discord.Client):
 client = ProductScraperBot()
 
 
-@client.tree.command(name="ps-add-brand", description="Add a brand to the banned list")
-async def add_brand(interaction: discord.Interaction, brand: str):
-    Logger.info(f"Received add brand request for: {brand}")
+@client.tree.command(name="ps-add-brands", description="Add multiple brands to the banned list")
+async def add_brands(interaction: discord.Interaction, brands: str):
+    Logger.info(f"Received add brands request for: {brands}")
     await interaction.response.defer(thinking=True)
 
-    data_manager.add_banned_brand(brand)
-    Logger.info(f"Added brand to banned list: {brand}")
-    embed = discord.Embed(
-        title="✅ Brand Added",
-        description=f"Added '{brand}' to the banned brands list.",
-        color=0x00ff00
-    )
-    await interaction.followup.send(embed=embed)
+    brand_list = [brand.strip() for brand in brands.split(',')]
+    added_brands = []
 
+    for brand in brand_list:
+        if brand:
+            data_manager.add_banned_brand(brand)
+            added_brands.append(brand)
+            Logger.info(f"Added brand to banned list: {brand}")
+
+    if added_brands:
+        brands_str = ', '.join(f"'{brand}'" for brand in added_brands)
+        embed = discord.Embed(
+            title="✅ Brands Added",
+            description=f"Added the following brands to the banned list:\n{brands_str}",
+            color=0x00ff00
+        )
+    else:
+        embed = discord.Embed(
+            title="⚠️ No Brands Added",
+            description="No valid brands were provided to add to the banned list.",
+            color=0xffff00
+        )
+
+    await interaction.followup.send(embed=embed)
 
 @client.tree.command(name="ps-remove-brand", description="Remove a brand from the banned list")
 async def remove_brand(interaction: discord.Interaction, brand: str):

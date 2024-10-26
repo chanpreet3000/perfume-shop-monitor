@@ -66,6 +66,7 @@ async def add_brands(interaction: discord.Interaction, brands: str):
 
     await interaction.followup.send(embed=embed)
 
+
 @client.tree.command(name="ps-remove-brand", description="Remove a brand from the banned list")
 async def remove_brand(interaction: discord.Interaction, brand: str):
     Logger.info(f"Received remove brand request for: {brand}")
@@ -331,7 +332,7 @@ def create_embed(product: ScrapedProduct, embed_color: int):
 
     embed = discord.Embed(
         title=f"{product.name} - {product.variant_info}",
-        url=product.url,
+        url=f"{product.url}#{product.uid}",
         color=embed_color
     )
     embed.add_field(name="Current Price", value=f"£{product.price}", inline=True)
